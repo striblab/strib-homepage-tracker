@@ -1,3 +1,5 @@
 .DS_Store
 data/*
 hp_stories.csv
+.env
+entrypoint.sh
