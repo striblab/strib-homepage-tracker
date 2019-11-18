@@ -3,3 +3,4 @@ data/*
 hp_stories.csv
 .env
 entrypoint.sh
+*.json

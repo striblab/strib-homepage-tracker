@@ -1,11 +1,12 @@
-import os, json, requests, datetime, boto
+import os, json, requests, datetime, boto, boto3
 from bs4 import BeautifulSoup
 from boto.s3.key import Key
 
 # Set these in your environment variables
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
-AWS_S3_BUCKET = os.getenv('AWS_S3_BUCKET', '')
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', '')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
+AWS_S3_BUCKET = os.environ.get('AWS_S3_BUCKET', '')
+REGION = os.environ.get('REGION', '')
 
 NOW = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -39,7 +40,7 @@ def story_to_json(obj):
         'headline': obj.h3.a['data-linkname'],
         'module': obj.h3.a['data-moduletype'],
         'position': obj.h3.a['data-position'],
-        'html_raw': unicode(obj),
+        'html_raw': str(obj),
         'relateds': relateds_to_json(relateds) if relateds else []
     }
     return json_obj
@@ -48,7 +49,7 @@ def top_headlines_to_json(obj):
     '''
     Creates JSON object out of the "More top headlines" section.
     '''
-    top_headlines = {'type': 'top_headlines', 'html_raw': unicode(obj), 'contents': []}
+    top_headlines = {'type': 'top_headlines', 'html_raw': str(obj), 'contents': []}
     for story in obj.find_all('div', {'class': 'collection-story'}):
         top_headlines['contents'].append({
             'datetime': NOW,
@@ -61,21 +62,29 @@ def top_headlines_to_json(obj):
 
 def save_local(obj, path='./data', filename="hp%s.json" % datetime.datetime.now().strftime('%Y%m%d%H%M%S')):
     '''
-    Save the JSON object to a local directory.
+    Save the JSON object to a local directory.save
     '''
     with open(os.path.join(path, filename), 'w') as f:
         f.write(json.dumps(obj))
 
 def save_to_s3(obj, path='projects/homepage-tracker/data/', filename="hp%s.json" % datetime.datetime.now().strftime('%Y%m%d%H%M%S'), headers={}):
     try:
-        conn = boto.connect_s3(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
-        bucket_obj = conn.get_bucket(AWS_S3_BUCKET)
+        s3 = boto3.client(
+            's3',
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=REGION
+        )
     except:
-        print 'Problem connecting to S3'
+        print('Problem connecting to S3')
         raise
 
-    key = Key(bucket_obj, os.path.join(path, filename))
-    key.set_contents_from_string(json.dumps(obj), headers)
+    key = os.path.join(path, filename)
+
+    with open('%s' % filename, 'w') as outfile:
+        json.dump(obj, outfile)
+
+    s3.upload_file(filename, AWS_S3_BUCKET, key)
     return
 
 ########## MAIN ##########
